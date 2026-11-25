@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 PriceBell (Thai name "น้องเฝ้าพอร์ต") is a Telegram bot that alerts users when asset prices hit targets: Thai and US stocks, ETFs, gold, oil and USD/THB. It is a portfolio project for job interviews, used by the author and friends, so it does not need to scale.
 
-**Status: still in planning. There is no application code yet.** `PLANNING.md` is the source of truth for decisions, scope, roadmap and open questions.
+**Status: step 0 (project setup) is done; next is step 1, the walking skeleton.** So far there is only tooling, the settings object and its tests; no bot code yet. `PLANNING.md` is the source of truth for decisions, scope, roadmap and open questions.
 
 ### How we work: the user writes the code, Claude guides
 
@@ -50,13 +50,16 @@ Current contents:
 | `CLAUDE.md` | This file |
 | `.gitignore` | Ignores `.env*` (except `.env.example`), venvs, tool caches, local DB files |
 | `.env.example` | Placeholder env vars; copy to `.env` (git-ignored) and fill in |
+| `pyproject.toml` | Package metadata (hatchling, src layout), dependencies, `dev` extra (pytest, ruff), ruff and pytest config |
+| `src/pricebell/settings.py` | `Settings` (pydantic-settings): reads `TELEGRAM_BOT_TOKEN` as `SecretStr` from env or `.env`, `extra="forbid"`. Not instantiated at import time; `main.py` will create it |
+| `tests/unit/test_settings.py` | Settings tests; each builds `Settings(_env_file=None)` so tests never read the local `.env` |
 
 **Planned code layout** (decided 25 Nov 2026; full tree and rationale in `PLANNING.md` §6.1). It is a target: create each folder in the slice that first needs it, not up front. Once code exists, add the real paths to the table above.
 
 | Path | Layer | What goes there |
 |---|---|---|
 | `src/pricebell/main.py` | composition root | Builds the app and wires concrete classes together. The only module that knows every implementation |
-| `src/pricebell/settings.py` | config | The single settings object; the only place that reads `os.environ` |
+| `src/pricebell/settings.py` | config | The single settings object; the only place that reads `os.environ` (exists since step 0) |
 | `src/pricebell/domain/` | domain (pure) | `PriceSnapshot`, symbol alias table, alert rules. Imports nothing outside the stdlib |
 | `src/pricebell/ports.py` | interfaces | `PriceProvider`, `Messenger` (`typing.Protocol`), `OutgoingMessage` |
 | `src/pricebell/services/` | services | Use cases (watchlist, alert engine); owns the transaction boundary |
@@ -69,7 +72,23 @@ Current contents:
 
 ## 3. Commands
 
-None yet: no code, dependencies or config files exist. Planned tooling is pytest, ruff and Docker, with GitHub Actions CI in v3. Add the real commands here (run locally, run all tests, run a single test, lint, start Postgres) once they exist.
+Run from the repo root. The venv uses Python 3.12 (the machine's default `python3` is 3.13 from Anaconda, so call `python3.12` explicitly).
+
+```bash
+python3.12 -m venv .venv          # once
+source .venv/bin/activate         # every new shell
+pip install -e ".[dev]"           # after changing pyproject.toml
+cp .env.example .env              # once, then put the BotFather token in .env
+
+pytest -v                                         # all tests
+pytest tests/unit/test_settings.py::test_missing_token_raises   # one test
+ruff check .                                      # lint
+ruff format .                                     # format (ruff format --check . to only check)
+
+ruff check . && ruff format --check . && pytest   # the "done" check before committing
+```
+
+Not yet: running the bot (step 1), Docker (step 3), Postgres via docker-compose (step 4), GitHub Actions CI (v3). Add them here when they exist.
 
 The Telegram bot token from BotFather goes in `.env`, never in code.
 

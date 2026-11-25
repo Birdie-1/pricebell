@@ -250,11 +250,12 @@ pricebell/
 
 ### 9.2 ขั้นตอน MVP
 
-**ขั้น 0 — เตรียมโปรเจกต์**
-- [ ] สร้างบอทกับ BotFather (username ต้องลงท้ายด้วย `bot`) เก็บ token ใน `.env`
-- [ ] `git init` (branch `main`), `.gitignore`, `.env.example`
-- [ ] `pyproject.toml`, ruff, pytest, settings object ที่อ่าน env
+**ขั้น 0 — เตรียมโปรเจกต์** ✅ เสร็จ 25 พ.ย. 2026 (commit `e1ad556`)
+- [x] สร้างบอทกับ BotFather (username ต้องลงท้ายด้วย `bot`) เก็บ token ใน `.env`
+- [x] `git init` (branch `main`), `.gitignore`, `.env.example`
+- [x] `pyproject.toml`, ruff, pytest, settings object ที่อ่าน env
 - เสร็จเมื่อ: `ruff check` และ `pytest` ผ่าน
+- สิ่งที่ตัดสินใจในขั้นนี้: ใช้ pydantic-settings, token เป็น `SecretStr` (ไม่หลุดเข้า log), `extra="forbid"` (พิมพ์ชื่อตัวแปรใน `.env` ผิดแล้ว error ทันที), ไม่สร้าง `Settings()` ตอน import (ให้ `main.py` สร้าง), เทสต์ใช้ `_env_file=None` เพื่อไม่พึ่ง `.env` จริง
 
 **ขั้น 1 — Walking skeleton**
 - [ ] FastAPI + python-telegram-bot แบบ long polling
@@ -357,7 +358,7 @@ v2 และ v3 เริ่มหลัง tag `mvp` เท่านั้น
 
 ## 12. ขั้นต่อไป
 
-เริ่มที่ **ขั้น 0** ใน §9.2 แล้วไล่ตามลำดับ คำถามที่ยังเปิดอยู่ให้ตอบก่อนถึงขั้นที่ระบุใน §9.4
+ขั้น 0 เสร็จแล้ว ต่อไปคือ **ขั้น 1 (Walking skeleton)** ใน §9.2 บน branch `feat/walking-skeleton` แล้วไล่ตามลำดับ คำถามที่ยังเปิดอยู่ให้ตอบก่อนถึงขั้นที่ระบุใน §9.4
 
 ---
 
