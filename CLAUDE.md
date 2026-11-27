@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 PriceBell (Thai name "น้องเฝ้าพอร์ต") is a Telegram bot that alerts users when asset prices hit targets: Thai and US stocks, ETFs, gold, oil and USD/THB. It is a portfolio project for job interviews, used by the author and friends, so it does not need to scale.
 
-**Status: step 0 (project setup) is done; next is step 1, the walking skeleton.** So far there is only tooling, the settings object and its tests; no bot code yet. `PLANNING.md` is the source of truth for decisions, scope, roadmap and open questions.
+**Status: steps 0 (project setup) and 1 (walking skeleton) are done; next is step 2, the `/price` slice.** The bot runs with long polling inside FastAPI and answers `/start` in Thai or English. There is no price provider, database or scheduler yet. Step 1 lives on `feat/walking-skeleton`, which still has to be squash-merged into `main`. `PLANNING.md` is the source of truth for decisions, scope, roadmap and open questions.
 
 ### How we work: the user writes the code, Claude guides
 
@@ -50,23 +50,28 @@ Current contents:
 | `CLAUDE.md` | This file |
 | `.gitignore` | Ignores `.env*` (except `.env.example`), venvs, tool caches, local DB files |
 | `.env.example` | Placeholder env vars; copy to `.env` (git-ignored) and fill in |
-| `pyproject.toml` | Package metadata (hatchling, src layout), dependencies, `dev` extra (pytest, ruff), ruff and pytest config |
-| `src/pricebell/settings.py` | `Settings` (pydantic-settings): reads `TELEGRAM_BOT_TOKEN` as `SecretStr` from env or `.env`, `extra="forbid"`. Not instantiated at import time; `main.py` will create it |
+| `pyproject.toml` | Package metadata (hatchling, src layout), dependencies (pydantic-settings, python-telegram-bot, fastapi, uvicorn), `dev` extra (pytest, ruff), ruff and pytest config |
+| `src/pricebell/main.py` | Composition root. `create_app()` (uvicorn factory) configures logging, sets the `httpx` logger to WARNING and builds the FastAPI app with `/health`. `lifespan` creates `Settings()`, builds the bot and starts long polling; on shutdown it stops in reverse order |
+| `src/pricebell/settings.py` | `Settings` (pydantic-settings): reads `TELEGRAM_BOT_TOKEN` as `SecretStr` from env or `.env`, `extra="forbid"`. Not instantiated at import time; `lifespan` in `main.py` creates it |
+| `src/pricebell/messages.py` | `Lang` (`"th"`/`"en"`), `DEFAULT_LANG = "th"`, `_MESSAGES` catalog keyed by message id then language, `pick_lang(language_code)` (English only for codes starting with `en`), `t(key, lang)` (raises `KeyError` on an unknown id) |
+| `src/pricebell/bot/app.py` | `build_application(token)`: builds the python-telegram-bot `Application` and registers the command handlers |
+| `src/pricebell/bot/handlers/start.py` | `/start` handler: picks the language from `language_code` and replies with `t("start.welcome", ...)` |
 | `tests/unit/test_settings.py` | Settings tests; each builds `Settings(_env_file=None)` so tests never read the local `.env` |
+| `tests/unit/test_messages.py` | `pick_lang` and `t` tests |
 
 **Planned code layout** (decided 25 Nov 2026; full tree and rationale in `PLANNING.md` §6.1). It is a target: create each folder in the slice that first needs it, not up front. Once code exists, add the real paths to the table above.
 
 | Path | Layer | What goes there |
 |---|---|---|
-| `src/pricebell/main.py` | composition root | Builds the app and wires concrete classes together. The only module that knows every implementation |
+| `src/pricebell/main.py` | composition root | Builds the app and wires concrete classes together. The only module that knows every implementation (exists since step 1) |
 | `src/pricebell/settings.py` | config | The single settings object; the only place that reads `os.environ` (exists since step 0) |
 | `src/pricebell/domain/` | domain (pure) | `PriceSnapshot`, symbol alias table, alert rules. Imports nothing outside the stdlib |
 | `src/pricebell/ports.py` | interfaces | `PriceProvider`, `Messenger` (`typing.Protocol`), `OutgoingMessage` |
 | `src/pricebell/services/` | services | Use cases (watchlist, alert engine); owns the transaction boundary |
-| `src/pricebell/messages.py` | shared | th/en strings keyed by id, disclaimer, price-timestamp line. Platform-neutral |
+| `src/pricebell/messages.py` | shared | th/en strings keyed by id, disclaimer, price-timestamp line. Platform-neutral (exists since step 1) |
 | `src/pricebell/providers/` | adapter | yfinance provider, TTL cache + single-flight |
 | `src/pricebell/db/` | adapter | SQLAlchemy models, session |
-| `src/pricebell/bot/` | adapter | Everything Telegram: `app.py`, `handlers/`, `callbacks.py`, `keyboards.py`, `messenger.py` (`TelegramMessenger`) |
+| `src/pricebell/bot/` | adapter | Everything Telegram: `app.py`, `handlers/`, `callbacks.py`, `keyboards.py`, `messenger.py` (`TelegramMessenger`). `app.py` and `handlers/start.py` exist since step 1 |
 | `src/pricebell/queue/` | adapter | Send queue (step 8) |
 | `tests/` | tests | `fakes.py` (`FakePriceProvider`, `FakeMessenger`), `unit/`, `integration/` |
 
@@ -86,9 +91,13 @@ ruff check .                                      # lint
 ruff format .                                     # format (ruff format --check . to only check)
 
 ruff check . && ruff format --check . && pytest   # the "done" check before committing
+
+python -m uvicorn pricebell.main:create_app --factory --reload   # run the bot locally (long polling); /health on :8000
 ```
 
-Not yet: running the bot (step 1), Docker (step 3), Postgres via docker-compose (step 4), GitHub Actions CI (v3). Add them here when they exist.
+Run uvicorn as `python -m uvicorn` so it uses the venv's Python. A bare `uvicorn` can resolve to the system install, which fails with `ModuleNotFoundError: pricebell` while its reloader keeps holding port 8000.
+
+Not yet: Docker (step 3), Postgres via docker-compose (step 4), GitHub Actions CI (v3). Add them here when they exist.
 
 The Telegram bot token from BotFather goes in `.env`, never in code.
 
@@ -130,7 +139,7 @@ These were set before any code existed. If the scaffold does something different
 - *Callback data:* encode and decode `callback_data` in one module. Encoding asserts the 64-byte limit. Handlers never split the string themselves.
 - *Database:* SQLAlchemy 2.0 style (`Mapped[...]`, `mapped_column`, `select()`), no legacy `Query` API. A session is opened per update or per scheduler cycle, and the transaction boundary lives in the service layer, not in handlers or rules.
 - *Config:* read settings (bot token, webhook secret, DB URL, poll interval) from environment variables in one settings object. Nothing else reads `os.environ`.
-- *Logging:* use `logging`, never `print`. Log the alert lifecycle (fired, queued, sent, retried) with the alert id and dedupe key so a missed alert can be traced.
+- *Logging:* use `logging`, never `print`. `create_app()` in `main.py` configures it once; every other module only does `logger = logging.getLogger(__name__)`. Keep the `httpx` logger at WARNING: at INFO it logs request URLs, and Telegram URLs contain the bot token. Never log the token or the whole `Settings` object. Log the alert lifecycle (fired, queued, sent, retried) with the alert id and dedupe key so a missed alert can be traced.
 - *Tests:* no network in tests. Use a fake `PriceProvider` (scripted price series) and a fake `Messenger` (records what was sent). Dedupe and hysteresis are tested with backtests over price series that oscillate around the threshold. Each design point in `PLANNING.md` §8 should have a test that proves it.
 
 **Git**
@@ -158,5 +167,6 @@ The folder is a git repository; the default branch is `main`. The history is par
 - **Free hosting tiers that sleep** (e.g. Render free) stop the scheduler and alerts stop firing. The app needs an always-on instance.
 - **Telegram limits:** `callback_data` ≤ 64 bytes; roughly 1 message/second per chat and 30/second overall. Alerts fired together during a sharp market move must go through the send queue. These figures are approximate; check the official docs before relying on them.
 - **SQLite tests can't cover Postgres locking.** `FOR UPDATE SKIP LOCKED` is ignored on SQLite, so the in-memory test DB cannot prove that overlapping scheduler runs never double-send. Keep the unique (alert, dedupe key) constraint as the real guarantee, and test concurrency against Postgres when it matters.
+- **One poller per bot token.** Only one process can long-poll a token at a time; a second one (another uvicorn, a stray reloader, a deployed instance) makes Telegram return `409 Conflict`. Stop the local bot before running another copy, and before the deployed one in step 3.
 - **Old buttons stay clickable.** A user can press a button on a message for an alert that was deleted; reply "this item was deleted" instead of erroring.
 - **Older LINE-era material.** Earlier notes and a scaffold targeted LINE. That MVP was moved to `~/.Trash/pricebell-mvp-20261125-101237`; its provider, cache, alert rules (hysteresis/cooldown/outbox) and tests can be reused for Telegram if the user asks to restore it.
