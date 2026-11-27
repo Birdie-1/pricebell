@@ -9,6 +9,9 @@ description = "Telegram bot that alerts users when asset prices hit targets: Tha
 requires-python = ">=3.12"
 dependencies = [
     "pydantic-settings>=2",
+    "python-telegram-bot>=21",
+    "fastapi",
+    "uvicorn",
 ]
 
 [project.optional-dependencies]

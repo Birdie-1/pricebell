@@ -1,9 +1,9 @@
 # PriceBell (น้องเฝ้าพอร์ต) — บันทึกการวางแผน
 
-สรุปสิ่งที่คุยและตัดสินใจกันไว้ถึงวันที่ 25 พ.ย. 2026 เอกสารแผนฉบับเต็มอยู่ที่
+สรุปสิ่งที่คุยและตัดสินใจกันไว้ถึงวันที่ 26 พ.ย. 2026 เอกสารแผนฉบับเต็มอยู่ที่
 [PriceBell — แผนโปรเจกต์](https://claude.ai/artifact/DrWsjdXZMsgQEYR87azYCM)
 
-> สถานะ: ยังอยู่ในขั้นวางแผน ยังไม่เริ่มเขียนโค้ด (จะเริ่มเมื่อสั่งชัดเจนเท่านั้น)
+> สถานะ: ขั้น 0 และขั้น 1 ของ MVP เสร็จแล้ว (บอทตอบ `/start` ได้จริง) ต่อไปคือขั้น 2 (§9.2)
 
 ---
 
@@ -22,6 +22,7 @@
 | หลัก UX | ทุกอย่างทำได้ด้วยการกด 1–3 ครั้ง พิมพ์เป็นทางสำรอง | เป้าหมาย "ใช้ง่าย" |
 | Layout ของโค้ด | `src/pricebell/` แบ่งตาม layer (รายละเอียด §6.1) | `src/` ทำให้เทสต์ใช้แพ็กเกจแบบเดียวกับตอน deploy, แบ่งตาม layer ทำให้เห็นจากต้นไม้ไฟล์ว่า engine ไม่รู้จัก Telegram (ตัดสินใจ 25 พ.ย. 2026) |
 | `Messenger` รับอะไร | ข้อความกลาง `OutgoingMessage` (text + ปุ่มแบบ action + id) adapter แปลงเป็นของแพลตฟอร์มเอง | logic เลือกข้อความและปุ่มอยู่ที่เดียว, LINE adapter ไม่ต้องเขียนซ้ำ, `callback_data` อยู่ใน adapter Telegram เท่านั้น (ตัดสินใจ 25 พ.ย. 2026) |
+| ภาษาเริ่มต้นของบอท | **ไทย** ตอบอังกฤษเฉพาะเมื่อ `language_code` ขึ้นต้นด้วย `en` | ผู้ใช้หลักเป็นคนไทย, ไม่มี `language_code` หรือเป็นภาษาอื่นก็ตอบไทย, ใช้ `startswith("en")` เพื่อให้ `en-US` และ `en-GB` ได้อังกฤษด้วย (ตัดสินใจ 26 พ.ย. 2026) |
 
 ---
 
@@ -250,18 +251,25 @@ pricebell/
 
 ### 9.2 ขั้นตอน MVP
 
-**ขั้น 0 — เตรียมโปรเจกต์** ✅ เสร็จ 25 พ.ย. 2026 (commit `e1ad556`)
+**ขั้น 0 — เตรียมโปรเจกต์** ✅ เสร็จ 25 พ.ย. 2026 (commit `671c558`)
 - [x] สร้างบอทกับ BotFather (username ต้องลงท้ายด้วย `bot`) เก็บ token ใน `.env`
 - [x] `git init` (branch `main`), `.gitignore`, `.env.example`
 - [x] `pyproject.toml`, ruff, pytest, settings object ที่อ่าน env
 - เสร็จเมื่อ: `ruff check` และ `pytest` ผ่าน
 - สิ่งที่ตัดสินใจในขั้นนี้: ใช้ pydantic-settings, token เป็น `SecretStr` (ไม่หลุดเข้า log), `extra="forbid"` (พิมพ์ชื่อตัวแปรใน `.env` ผิดแล้ว error ทันที), ไม่สร้าง `Settings()` ตอน import (ให้ `main.py` สร้าง), เทสต์ใช้ `_env_file=None` เพื่อไม่พึ่ง `.env` จริง
 
-**ขั้น 1 — Walking skeleton**
-- [ ] FastAPI + python-telegram-bot แบบ long polling
-- [ ] `/start` ตอบสองภาษาผ่าน messages module (เลือกจาก `language_code`)
-- [ ] ตั้งค่า logging
+**ขั้น 1 — Walking skeleton** ✅ เสร็จ 26 พ.ย. 2026 (branch `feat/walking-skeleton` ยังไม่ได้ merge เข้า `main`)
+- [x] FastAPI + python-telegram-bot แบบ long polling
+- [x] `/start` ตอบสองภาษาผ่าน messages module (เลือกจาก `language_code`)
+- [x] ตั้งค่า logging
 - เสร็จเมื่อ: กด `/start` ในเทเลแกรมแล้วได้คำตอบตามภาษาของเครื่อง
+- สิ่งที่ตัดสินใจในขั้นนี้:
+  - ภาษาเริ่มต้นเป็นไทย (ดู §1)
+  - `messages.py` เก็บข้อความเป็น dict ที่ใช้ id เป็น key ก่อน แล้วค่อยแยก `th`/`en` ข้างใน, `t()` ที่เจอ id ที่ไม่มีจะ raise `KeyError` ทันที ดีกว่าส่งข้อความว่างไปให้ผู้ใช้แบบเงียบๆ
+  - รันบอทใน lifespan ของ FastAPI ไม่ใช้ `run_polling()` เพราะ uvicorn คุม event loop อยู่แล้ว เปิดตามลำดับ `initialize` → `updater.start_polling` → `start` และปิดย้อนลำดับ เพื่อไม่ให้รับ update ใหม่หลังจาก handler หยุดแล้ว
+  - uvicorn รันแบบ `--factory` ผ่าน `create_app()` ทำให้ `Settings()` ถูกสร้างตอนเปิดแอป ไม่ใช่ตอน import
+  - logger ของ `httpx` ตั้งไว้ที่ WARNING เพราะที่ระดับ INFO มัน log URL ของทุก request และ URL ของ Telegram มี token อยู่
+  - มี `/health` ไว้เช็คว่าแอปยังทำงานอยู่ (ใช้ต่อตอน deploy ในขั้น 3)
 
 **ขั้น 2 — Slice `/price`**
 - [ ] ตาราง alias ของ symbol (`PTT` → `PTT.BK`, `ทอง` → `GC=F`)
@@ -358,7 +366,7 @@ v2 และ v3 เริ่มหลัง tag `mvp` เท่านั้น
 
 ## 12. ขั้นต่อไป
 
-ขั้น 0 เสร็จแล้ว ต่อไปคือ **ขั้น 1 (Walking skeleton)** ใน §9.2 บน branch `feat/walking-skeleton` แล้วไล่ตามลำดับ คำถามที่ยังเปิดอยู่ให้ตอบก่อนถึงขั้นที่ระบุใน §9.4
+ขั้น 0 และขั้น 1 เสร็จแล้ว ให้ squash merge `feat/walking-skeleton` เข้า `main` ก่อน แล้วต่อด้วย **ขั้น 2 (Slice `/price`)** ใน §9.2 บน branch ใหม่ แล้วไล่ตามลำดับ คำถามที่ยังเปิดอยู่ให้ตอบก่อนถึงขั้นที่ระบุใน §9.4
 
 ---
 
