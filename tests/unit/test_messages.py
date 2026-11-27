@@ -1,5 +1,4 @@
 import pytest
-import os
 
 from pricebell.messages import pick_lang, t
 
