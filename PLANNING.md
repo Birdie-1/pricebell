@@ -22,6 +22,7 @@
 | หลัก UX | ทุกอย่างทำได้ด้วยการกด 1–3 ครั้ง พิมพ์เป็นทางสำรอง | เป้าหมาย "ใช้ง่าย" |
 | Layout ของโค้ด | `src/pricebell/` แบ่งตาม layer (รายละเอียด §6.1) | `src/` ทำให้เทสต์ใช้แพ็กเกจแบบเดียวกับตอน deploy, แบ่งตาม layer ทำให้เห็นจากต้นไม้ไฟล์ว่า engine ไม่รู้จัก Telegram (ตัดสินใจ 25 พ.ย. 2026) |
 | `Messenger` รับอะไร | ข้อความกลาง `OutgoingMessage` (text + ปุ่มแบบ action + id) adapter แปลงเป็นของแพลตฟอร์มเอง | logic เลือกข้อความและปุ่มอยู่ที่เดียว, LINE adapter ไม่ต้องเขียนซ้ำ, `callback_data` อยู่ใน adapter Telegram เท่านั้น (ตัดสินใจ 25 พ.ย. 2026) |
+| CI | **GitHub Actions ขั้นต่ำย้ายมาทำหลังขั้น 1** (ไม่รอ v3): ruff check, ruff format --check, pytest ทุก PR และทุก push เข้า `main` | การเช็คมีอยู่แล้ว ทำแค่ไฟล์ YAML ไฟล์เดียว, เครื่อง CI ไม่มี `.env` จึงพิสูจน์ว่าเทสต์ไม่พึ่งไฟล์ในเครื่อง, คนสัมภาษณ์เห็นติ๊กเขียวทุก PR (ตัดสินใจ 27 พ.ย. 2026, merge ใน PR #2) |
 | ภาษาเริ่มต้นของบอท | **ไทย** ตอบอังกฤษเฉพาะเมื่อ `language_code` ขึ้นต้นด้วย `en` | ผู้ใช้หลักเป็นคนไทย, ไม่มี `language_code` หรือเป็นภาษาอื่นก็ตอบไทย, ใช้ `startswith("en")` เพื่อให้ `en-US` และ `en-GB` ได้อังกฤษด้วย (ตัดสินใจ 26 พ.ย. 2026) |
 
 ---
@@ -133,7 +134,7 @@ Postgres: users · watchlist · alerts · alert_events · processed_updates
 - python-telegram-bot (ไม่ใช้ JobQueue และ `AIORateLimiter` ของมัน เพราะ scheduler และ send queue เป็นของเราเอง)
 - yfinance ใน MVP, Finnhub ใน v2
 - Docker, Fly.io หรือ Railway, Neon หรือ Supabase
-- pytest + ruff, GitHub Actions ใน v3
+- pytest + ruff, GitHub Actions CI (มีตั้งแต่หลังขั้น 1: `.github/workflows/ci.yaml`)
 
 **Data model**
 
@@ -235,7 +236,7 @@ pricebell/
 |---|---|---|
 | **MVP** | `/price` การ์ดราคา + รีเฟรช, watchlist, alert ราคาเป้าและ %, ตั้ง alert ด้วยปุ่ม + เลิกทำ, `/demo`, ช่วงห้ามรบกวน, yfinance + cache, ไม่ poll ตลาดปิด, เทสต์, deploy, README | คนแปลกหน้ากดลิงก์บอทแล้วเห็น alert เด้งด้วย `/demo` |
 | **v2** | เวลาตลาด (`exchange_calendars`), alert 52 สัปดาห์ / SMA50/200 / RSI (คำนวณวันละครั้งหลังตลาดปิด), สรุปตลาดรายวัน, กราฟเป็นรูป, Finnhub WebSocket, ราคาทองบาทละ | วัดความหน่วงของ alert ได้และโชว์ตัวเลขใน README |
-| **v3** (ถ้ามีแรง) | LINE adapter, Mini App, provider fallback, GitHub Actions CI, README + diagram ภาษาอังกฤษ | เพิ่ม LINE ได้โดยไม่แก้ alert engine |
+| **v3** (ถ้ามีแรง) | LINE adapter, Mini App, provider fallback, `import-linter` ใน CI + branch protection ให้ `main` รับเฉพาะ PR ที่ CI เขียว (CI พื้นฐานมีแล้ว), README + diagram ภาษาอังกฤษ | เพิ่ม LINE ได้โดยไม่แก้ alert engine |
 
 ยังไม่ได้กำหนดวันที่ของแต่ละเฟส
 
@@ -258,7 +259,7 @@ pricebell/
 - เสร็จเมื่อ: `ruff check` และ `pytest` ผ่าน
 - สิ่งที่ตัดสินใจในขั้นนี้: ใช้ pydantic-settings, token เป็น `SecretStr` (ไม่หลุดเข้า log), `extra="forbid"` (พิมพ์ชื่อตัวแปรใน `.env` ผิดแล้ว error ทันที), ไม่สร้าง `Settings()` ตอน import (ให้ `main.py` สร้าง), เทสต์ใช้ `_env_file=None` เพื่อไม่พึ่ง `.env` จริง
 
-**ขั้น 1 — Walking skeleton** ✅ เสร็จ 26 พ.ย. 2026 (branch `feat/walking-skeleton` ยังไม่ได้ merge เข้า `main`)
+**ขั้น 1 — Walking skeleton** ✅ เสร็จ 26 พ.ย. 2026 (merge เข้า `main` ใน PR #1)
 - [x] FastAPI + python-telegram-bot แบบ long polling
 - [x] `/start` ตอบสองภาษาผ่าน messages module (เลือกจาก `language_code`)
 - [x] ตั้งค่า logging
@@ -281,10 +282,12 @@ pricebell/
 
 **ขั้น 3 — Deploy เร็ว (เช็คความเสี่ยง)**
 - [ ] Dockerfile, ขึ้น Fly.io หรือ Railway แบบ long polling
+- [ ] เพิ่ม step `docker build` ใน CI (build อย่างเดียว ไม่ push) ให้รู้ตั้งแต่ใน PR ว่า Dockerfile พัง
 - เสร็จเมื่อ: `/price` ใช้ได้จาก host จริง (พิสูจน์ว่า yfinance ไม่ถูกบล็อกจาก IP ของ host)
 
 **ขั้น 4 — Slice watchlist** (DB เริ่มตรงนี้: `users`, `watchlist_items`)
 - [ ] SQLAlchemy 2 + migration, Postgres ใน docker-compose
+- [ ] Postgres แบบ service container ใน CI สำหรับ integration test (SQLite พิสูจน์ `FOR UPDATE SKIP LOCKED` ไม่ได้)
 - [ ] เปิด session ต่อ update, transaction อยู่ใน service layer
 - [ ] `/watch`, `/portfolio`, ปุ่มเพิ่ม/เอาออกที่อ้างด้วย id
 - [ ] ปุ่มเก่าของรายการที่ลบแล้วตอบ "รายการนี้ถูกลบไปแล้ว"

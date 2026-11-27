@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 PriceBell (Thai name "น้องเฝ้าพอร์ต") is a Telegram bot that alerts users when asset prices hit targets: Thai and US stocks, ETFs, gold, oil and USD/THB. It is a portfolio project for job interviews, used by the author and friends, so it does not need to scale.
 
-**Status: steps 0 (project setup) and 1 (walking skeleton) are done; next is step 2, the `/price` slice.** The bot runs with long polling inside FastAPI and answers `/start` in Thai or English. There is no price provider, database or scheduler yet. Step 1 lives on `feat/walking-skeleton`, which still has to be squash-merged into `main`. `PLANNING.md` is the source of truth for decisions, scope, roadmap and open questions.
+**Status: steps 0 (project setup) and 1 (walking skeleton) are done; next is step 2, the `/price` slice.** The bot runs with long polling inside FastAPI and answers `/start` in Thai or English. There is no price provider, database or scheduler yet. Steps 0–1 are on `main`. GitHub Actions CI (ruff + pytest on every PR) was moved forward from v3 and merged in PR #2. `PLANNING.md` is the source of truth for decisions, scope, roadmap and open questions.
 
 ### How we work: the user writes the code, Claude guides
 
@@ -58,6 +58,7 @@ Current contents:
 | `src/pricebell/bot/handlers/start.py` | `/start` handler: picks the language from `language_code` and replies with `t("start.welcome", ...)` |
 | `tests/unit/test_settings.py` | Settings tests; each builds `Settings(_env_file=None)` so tests never read the local `.env` |
 | `tests/unit/test_messages.py` | `pick_lang` and `t` tests |
+| `.github/workflows/ci.yaml` | GitHub Actions CI: on every `pull_request` and on `push` to `main`, runs `ruff check`, `ruff format --check` and `pytest` (Python 3.12, pip cache keyed on `pyproject.toml`, `permissions: contents: read`, 10-minute timeout). No secrets: the CI machine has no `.env` or token, so a test that reads `.env` or the network fails there |
 
 **Planned code layout** (decided 25 Nov 2026; full tree and rationale in `PLANNING.md` §6.1). It is a target: create each folder in the slice that first needs it, not up front. Once code exists, add the real paths to the table above.
 
@@ -88,6 +89,7 @@ cp .env.example .env              # once, then put the BotFather token in .env
 pytest -v                                         # all tests
 pytest tests/unit/test_settings.py::test_missing_token_raises   # one test
 ruff check .                                      # lint
+ruff check --fix .                                # lint and auto-fix what ruff marks [*]
 ruff format .                                     # format (ruff format --check . to only check)
 
 ruff check . && ruff format --check . && pytest   # the "done" check before committing
@@ -97,7 +99,14 @@ python -m uvicorn pricebell.main:create_app --factory --reload   # run the bot l
 
 Run uvicorn as `python -m uvicorn` so it uses the venv's Python. A bare `uvicorn` can resolve to the system install, which fails with `ModuleNotFoundError: pricebell` while its reloader keeps holding port 8000.
 
-Not yet: Docker (step 3), Postgres via docker-compose (step 4), GitHub Actions CI (v3). Add them here when they exist.
+CI runs the same "done" check on GitHub. A push to a feature branch only triggers CI once a PR is open. To check results from the terminal:
+
+```bash
+gh run list --limit 5                # recent CI runs
+gh run view <run-id> --log-failed    # logs of the failed step
+```
+
+Not yet: Docker (step 3; also add a `docker build` step to CI), Postgres via docker-compose (step 4; also a Postgres service container in CI for integration tests), import-linter and branch protection (v3). Add them here when they exist.
 
 The Telegram bot token from BotFather goes in `.env`, never in code.
 
@@ -152,7 +161,7 @@ The folder is a git repository; the default branch is `main`. The history is par
   - Scopes follow the architecture: `bot`, `handlers`, `provider`, `alerts`, `queue`, `db`, `config`, `deploy`. Leave the scope out for changes that cut across.
   - Use the body to explain why, especially for design points from `PLANNING.md` §8 (e.g. why hysteresis is 0.5%).
 - *Commit size:* one logical change per commit. Tests go in the same commit as the code they cover. Formatting-only changes go in their own commit.
-- *Branches:* `feat/<short-name>`, `fix/<short-name>`, `docs/<short-name>` off `main`. Merge into `main` with a squash merge so each feature is one commit on `main`. Once GitHub Actions CI exists (v3), `main` only takes PRs with green CI.
+- *Branches:* `feat/<short-name>`, `fix/<short-name>`, `docs/<short-name>`, `ci/<short-name>` off `main`. Merge into `main` through a PR with green CI, using **Squash and merge** (pick it from the merge button's dropdown) so each feature is one commit on `main`. PRs #1 and #2 were merged with merge commits by mistake; leave that history as it is. Branch protection that enforces green CI is v3.
 - *Tags:* tag the commit that was deployed at the end of each roadmap phase: `mvp`, `v2`, `v3`.
 - *Don't commit:* `.env` (commit a `.env.example` with placeholder values instead), local DB files, or anything restored from the old LINE scaffold that isn't used.
 
